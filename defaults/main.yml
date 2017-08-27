@@ -1,0 +1,15 @@
+---
+# Default variables for this role
+
+# NextCloud system user credentials
+nextcloud_user: nextcloud
+nextcloud_password: MyPassword
+
+# Database credentials
+nextcloud_db_password: MyPassword
+
+# Website configuration
+nextcloud_hostname: nextcloud.mysite.com
+
+# Let's Encrypt email address
+certbot_email: mymail@mail.com

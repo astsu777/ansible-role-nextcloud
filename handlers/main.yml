@@ -1,0 +1,20 @@
+---
+- name: restart nginx
+  service:
+    name: nginx
+    state: restarted
+
+- name: reload nginx
+  service:
+    name: nginx
+    state: reloaded
+
+- name: restart redis-server
+  service:
+    name: redis
+    state: restarted
+
+- name: restart php-fpm
+  service:
+    name: php7.0-fpm
+    state: restarted

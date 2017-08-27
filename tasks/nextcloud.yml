@@ -1,0 +1,172 @@
+---
+- name: (NEXTCLOUD) Install prerequisites
+  package:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - php-fpm
+    - php-gd
+    - php-mcrypt
+    - php-redis
+    - redis-server
+  notify: restart nginx
+
+- name: (NEXTCLOUD) Enable Redis server UNIX socket
+  lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^# unixsocket '
+    state: present
+    line: unixsocket /var/run/redis/redis.sock
+    backrefs: yes
+  notify: restart redis-server
+
+- name: (NEXTCLOUD) Enable Redis server UNIX socket (permissions)
+  lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: '^# unixsocketperm'
+    state: present
+    line: unixsocketperm 770
+    backrefs: yes
+  notify: restart redis-server
+
+- name: (NEXTCLOUD) Create the NextCloud user
+  user:
+    name: "{{ nextcloud_user }}"
+    password: "{{ nextcloud_user_password }}"
+    groups: redis
+    append: yes
+    shell: /bin/bash
+    update_password: on_create
+
+- name: (NEXTCLOUD) Check if NextCloud is already installed
+  stat:
+    path: /home/{{ nextcloud_user }}/public_html/nextcloud
+  register: nextcloudinstalled
+
+- name: (NEXTCLOUD) Download the latest version and extract the archive to public_html
+  unarchive:
+    src: https://download.nextcloud.com/server/releases/latest.tar.bz2
+    remote_src: yes
+    dest: /home/{{ nextcloud_user }}/public_html/
+    owner: "{{ nextcloud_user }}"
+    group: "{{ nextcloud_user }}"
+  register: newnextcloud
+  when: not nextcloudinstalled.stat.exists
+
+- name: (NEXTCLOUD) Create the database
+  mysql_db:
+    name: "{{ nextcloud_user }}_nc"
+
+- name: (NEXTCLOUD) Create the database's user
+  mysql_user:
+    name: "{{ nextcloud_user }}"
+    password: "{{ nextcloud_db_password }}"
+    update_password: on_create
+    state: present
+    priv: '{{ nextcloud_user }}\_%.*:ALL'
+
+- name: (NEXTCLOUD) Create site in Nginx
+  template:
+    src: nextcloud-nginx.conf
+    dest: /etc/nginx/sites-available/{{ nextcloud_hostname }}.conf
+  when: not nextcloudinstalled.stat.exists
+
+- name: (NEXTCLOUD) Create PHP pool configuration
+  template:
+    src: nextcloud-phppool.conf
+    dest: /etc/php/7.0/fpm/pool.d/{{ nextcloud_user }}.conf
+  when: not nextcloudinstalled.stat.exists
+  notify: restart php-fpm
+
+- name: (NEXTCLOUD) Enable the site in Nginx
+  file:
+    src: /etc/nginx/sites-available/{{ nextcloud_hostname }}.conf
+    path: /etc/nginx/sites-enabled/{{ nextcloud_hostname }}.conf
+    state: link
+  when: not nextcloudinstalled.stat.exists
+  notify: reload nginx
+
+- name: (NEXTCLOUD) Stop Nginx to generate certificate
+  service:
+    name: nginx
+    state: stopped
+  changed_when: false
+
+- name: (NEXTCLOUD) Make sure Certbot is installed
+  package:
+    name: certbot
+    state: latest
+
+- name: (NEXTCLOUD) Check if the PHPMyAdmin hostname can be solved
+  command: dig {{ nextcloud_hostname }} +short
+  register: dig
+  changed_when: false
+
+- name: (NEXTCLOUD) Generate certificate for NextCloud
+  command: "certbot certonly -n -d {{ nextcloud_hostname }} --agree-tos --standalone --email {{ certbot_email }}"
+  register: certbot
+  when: not dig.stdout == ""
+
+- name: (NEXTCLOUD) Check if Let's Encrypt certificates exist
+  stat:
+    path: /etc/letsencrypt/live/{{ nextcloud_hostname }}/fullchain.pem
+  register: cert
+
+- name: (NEXTCLOUD) Copy default SSL certificates due to Certbot failure
+  copy:
+    src: ssl-cert-snakeoil.pem
+    dest: /etc/ssl/certs/ssl-cert-snakeoil.pem
+    owner: root
+    group: root
+    mode: 0644
+  when: not cert.stat.exists
+
+- name: (NEXTCLOUD) Copy default SSL key due to Certbot failure
+  copy:
+    src: ssl-cert-snakeoil.key
+    dest: /etc/ssl/private/ssl-cert-snakeoil.key
+    owner: root
+    group: root
+    mode: 0644
+  when: not cert.stat.exists
+
+- name: (NEXTCLOUD) Use default SSL certificate due to Certbot failure
+  lineinfile:
+    path: /etc/nginx/sites-available/{{ nextcloud_hostname }}.conf
+    regexp: '^    ssl_certificate '
+    line: "    ssl_certificate /etc/ssl/certs/ssl-cert-snakeoil.pem;"
+    backrefs: yes
+  when: not cert.stat.exists
+
+- name: (NEXTCLOUD) Use default SSL private key due to Certbot failure
+  lineinfile:
+    path: /etc/nginx/sites-available/{{ nextcloud_hostname }}.conf
+    regexp: '^    ssl_certificate_key'
+    line: "    ssl_certificate_key /etc/ssl/private/ssl-cert-snakeoil.key;"
+    backrefs: yes
+  when: not cert.stat.exists
+
+- name: (NEXTCLOUD) Start Nginx
+  service:
+    name: nginx
+    state: started
+  changed_when: false
+
+- name: (NEXTCLOUD) Install NextCloud
+  command: sudo -u {{ nextcloud_user }} php /home/{{ nextcloud_user }}/public_html/nextcloud/occ maintenance:install --database "mysql" --database-name "{{ nextcloud_user }}_nc"  --database-user "{{ nextcloud_user }}" --database-pass "{{ nextcloud_db_password }}" --admin-user "{{ nextcloud_admin }}" --admin-pass "{{ nextcloud_admin_password }}" --data-dir "/home/{{ nextcloud_user }}/clouddata"
+  when: newnextcloud|changed
+
+- name: (NEXTCLOUD) Add public URL as trusted location
+  lineinfile:
+    path: /home/{{ nextcloud_user }}/public_html/nextcloud/config/config.php
+    insertafter: '0 =>'
+    line: "    1 => '{{ nextcloud_hostname }}',"
+    state: present
+
+- name: (NEXTCLOUD) Configure memory caching
+  blockinfile:
+    path: /home/{{ nextcloud_user }}/public_html/nextcloud/config/config.php
+    marker: "/* {mark} Memory Caching Configuration */"
+    insertbefore: '\);'
+    state: present
+    block: "{{ lookup('file', 'files/nextcloud-config.php') }}"

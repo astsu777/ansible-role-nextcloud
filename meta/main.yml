@@ -1,0 +1,20 @@
+galaxy_info:
+  author: Gaétan
+  description: Install and configure NextCloud
+
+  license: license (MIT, BSD)
+
+  min_ansible_version: 2.3
+
+  platforms:
+   - name: Linux
+     versions:
+     - all
+
+  galaxy_tags:
+    - linux
+    - nextcloud
+
+  dependencies:
+    - GSquad934.database
+    - GSquad934.webserver
