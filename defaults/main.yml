@@ -10,6 +10,8 @@ nextcloud_db_password: MyPassword
 
 # Website configuration
 nextcloud_hostname: nextcloud.mysite.com
+nextcloud_admin: admin
+nextcloud_admin_password: MyPassword
 
 # Let's Encrypt email address
 certbot_email: mymail@mail.com
