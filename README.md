@@ -32,9 +32,12 @@ nextcloud_password: MyPassword
 nextcloud_db_password: MyPassword
 nextcloud_hostname: nextcloud.mysite.com
 certbot_email: mymail@mail.com
+db_server: localhost
+nextcloud_server: localhost
 ```
 
 The variables above can be configured as group_vars or host_vars. As far as the credentials are concerned, these should be kept in a separate secret vars_file encrypted with *ansible-vault*.
+
 
 Dependencies
 ------------

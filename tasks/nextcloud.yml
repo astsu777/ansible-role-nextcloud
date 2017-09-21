@@ -56,6 +56,7 @@
 - name: (NEXTCLOUD) Create the database
   mysql_db:
     name: "{{ nextcloud_user }}_nc"
+  delegate_to: "{{ db_server }}"
 
 - name: (NEXTCLOUD) Create the database's user
   mysql_user:
@@ -64,6 +65,8 @@
     update_password: on_create
     state: present
     priv: '{{ nextcloud_user }}\_%.*:ALL'
+    host: "{{ nextcloud_server }}"
+  delegate_to: "{{ db_server }}"
 
 - name: (NEXTCLOUD) Create site in Nginx
   template:
@@ -153,7 +156,7 @@
   changed_when: false
 
 - name: (NEXTCLOUD) Install NextCloud
-  command: sudo -u {{ nextcloud_user }} php /home/{{ nextcloud_user }}/public_html/nextcloud/occ maintenance:install --database "mysql" --database-name "{{ nextcloud_user }}_nc"  --database-user "{{ nextcloud_user }}" --database-pass "{{ nextcloud_db_password }}" --admin-user "{{ nextcloud_admin }}" --admin-pass "{{ nextcloud_admin_password }}" --data-dir "/home/{{ nextcloud_user }}/clouddata"
+  command: sudo -u {{ nextcloud_user }} php /home/{{ nextcloud_user }}/public_html/nextcloud/occ maintenance:install --database "mysql" --database-name "{{ nextcloud_user }}_nc"  --database-host "{{ db_server }}" --database-user "{{ nextcloud_user }}" --database-pass "{{ nextcloud_db_password }}" --admin-user "{{ nextcloud_admin }}" --admin-pass "{{ nextcloud_admin_password }}" --data-dir "/home/{{ nextcloud_user }}/clouddata"
   when: newnextcloud|changed
 
 - name: (NEXTCLOUD) Add public URL as trusted location

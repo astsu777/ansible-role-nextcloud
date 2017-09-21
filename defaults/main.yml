@@ -15,3 +15,7 @@ nextcloud_admin_password: MyPassword
 
 # Let's Encrypt email address
 certbot_email: mymail@mail.com
+
+# Server configuration
+db_server: localhost
+nextcloud_server: localhost
