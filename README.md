@@ -32,7 +32,7 @@ nextcloud_password: MyPassword
 nextcloud_db_password: MyPassword
 nextcloud_hostname: nextcloud.mysite.com
 certbot_email: mymail@mail.com
-db_server: localhost
+db_server: "{{ inventory_hostname }}" (this equals *localhost*)
 nextcloud_server: localhost
 ```
 

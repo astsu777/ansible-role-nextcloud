@@ -17,5 +17,5 @@ nextcloud_admin_password: MyPassword
 certbot_email: mymail@mail.com
 
 # Server configuration
-db_server: localhost
+db_server: "{{ inventory_hostname }}"
 nextcloud_server: localhost

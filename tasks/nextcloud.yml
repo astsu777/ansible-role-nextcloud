@@ -6,9 +6,17 @@
   with_items:
     - php-fpm
     - php-gd
+    - php-json
+    - php-intl
+    - php-imagick
+    - php-xml
+    - php-mbstring
     - php-mcrypt
     - php-redis
+    - php-zip
+    - php-curl
     - redis-server
+    - dnsutils
   notify: restart nginx
 
 - name: (NEXTCLOUD) Enable Redis server UNIX socket
@@ -100,7 +108,7 @@
     name: certbot
     state: latest
 
-- name: (NEXTCLOUD) Check if the PHPMyAdmin hostname can be solved
+- name: (NEXTCLOUD) Check if the NextCloud hostname can be solved
   command: dig {{ nextcloud_hostname }} +short
   register: dig
   changed_when: false
@@ -155,9 +163,22 @@
     state: started
   changed_when: false
 
-- name: (NEXTCLOUD) Install NextCloud
-  command: sudo -u {{ nextcloud_user }} php /home/{{ nextcloud_user }}/public_html/nextcloud/occ maintenance:install --database "mysql" --database-name "{{ nextcloud_user }}_nc"  --database-host "{{ db_server }}" --database-user "{{ nextcloud_user }}" --database-pass "{{ nextcloud_db_password }}" --admin-user "{{ nextcloud_admin }}" --admin-pass "{{ nextcloud_admin_password }}" --data-dir "/home/{{ nextcloud_user }}/clouddata"
-  when: newnextcloud|changed
+- name: (NEXTCLOUD) Check if database server is localhost
+  stat:
+    path: /etc/mysql/my.cnf
+  register: dbserver
+
+- name: (NEXTCLOUD) Install NextCloud (with remote database server)
+  command: sudo -u {{ nextcloud_user }} php occ maintenance:install --database "mysql" --database-name "{{ nextcloud_user }}_nc" --database-host "{{ db_server }}" --database-user "{{ nextcloud_user }}" --database-pass "{{ nextcloud_db_password }}" --admin-user "{{ nextcloud_admin }}" --admin-pass "{{ nextcloud_admin_password }}" --data-dir "/home/{{ nextcloud_user }}/clouddata"
+  args:
+    chdir: /home/{{ nextcloud_user }}/public_html/nextcloud/
+  when: newnextcloud|changed and not dbserver.stat.exists
+
+- name: (NEXTCLOUD) Install NextCloud (with local database server)
+  command: sudo -u {{ nextcloud_user }} php occ maintenance:install --database "mysql" --database-name "{{ nextcloud_user }}_nc" --database-user "{{ nextcloud_user }}" --database-pass "{{ nextcloud_db_password }}" --admin-user "{{ nextcloud_admin }}" --admin-pass "{{ nextcloud_admin_password }}" --data-dir "/home/{{ nextcloud_user }}/clouddata"
+  args:
+    chdir: /home/{{ nextcloud_user }}/public_html/nextcloud/
+  when: newnextcloud|changed and dbserver.stat.exists
 
 - name: (NEXTCLOUD) Add public URL as trusted location
   lineinfile:
