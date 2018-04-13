@@ -1,3 +1,3 @@
 ---
 # Install and configure NextCloud + Create a Website in Nginx
-- include: nextcloud.yml
+- include_tasks: nextcloud.yml
